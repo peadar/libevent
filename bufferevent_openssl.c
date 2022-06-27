@@ -259,6 +259,18 @@ conn_closed(struct bufferevent_ssl *bev_ssl, int when, int errcode, int ret)
 		bufferevent_ssl_put_error(bev_ssl, errcode);
 		break;
 	case SSL_ERROR_SSL:
+#ifdef SSL_R_UNEXPECTED_EOF_WHILE_READING
+		err = ERR_peek_error();
+		if (ERR_GET_LIB(err) == ERR_LIB_SSL &&
+		    ERR_GET_REASON(err) == SSL_R_UNEXPECTED_EOF_WHILE_READING) {
+			/* Possibly a clean shutdown. */
+			if (SSL_get_shutdown(bev_ssl->ssl) & SSL_RECEIVED_SHUTDOWN)
+				event = BEV_EVENT_EOF;
+			else
+				dirty_shutdown = 1;
+			break;
+		}
+#endif
 		/* Protocol error. */
 		bufferevent_ssl_put_error(bev_ssl, errcode);
 		break;
